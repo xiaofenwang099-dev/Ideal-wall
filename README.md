@@ -18,9 +18,9 @@ python -m http.server 8000
 
 本项目使用 Supabase Postgres、匿名 Auth 会话和 RLS。访客可匿名投稿和每人每条理想点赞一次；管理员通过邮箱密码登录，只有数据库中加入 `admin_users` 的账号才能编辑或删除。点赞计数由数据库触发器维护，浏览器不能直接修改。
 
-1. 在 [Supabase](https://supabase.com/dashboard) 创建项目。
-2. 打开项目的 **SQL Editor**，运行 [`supabase/schema.sql`](supabase/schema.sql) 全文。脚本会创建安全策略并写入 15 条示例投稿；在同一项目中只运行一次，重复运行会再次加入示例投稿。
-3. 在 **Authentication → Sign In / Providers** 启用 **Anonymous Sign-Ins**。访客无需注册，Supabase 会为每台浏览器分配匿名身份，以便跨刷新防止重复点赞。
+1. Supabase Free 项目已经创建。
+2. 数据库表、安全策略和 15 条示例投稿已经在 **SQL Editor** 创建，脚本位于 [`supabase/schema.sql`](supabase/schema.sql)。新建项目时运行一次；重复运行会再次加入示例投稿。
+3. **Authentication → Sign In / Providers** 已启用 **Anonymous Sign-Ins**。访客无需注册，Supabase 会为每台浏览器分配匿名身份，以便跨刷新防止重复点赞。
 4. 在 **Authentication → Users** 创建管理员用户，记下其邮箱。然后在 SQL Editor 执行下方语句，把账号加入管理员名单（替换邮箱）：
 
    ```sql
@@ -29,8 +29,8 @@ python -m http.server 8000
    on conflict (user_id) do nothing;
    ```
 
-5. 从 Supabase 项目设置复制 **Project URL** 和 **Publishable key**（旧项目也可能标为 `anon` key），填入 `supabase-config.js` 的 `url` 和 `anonKey`。
-6. 将更改推送到 GitHub 仓库 `main` 分支。GitHub Actions 会自动重新部署 GitHub Pages。在线页面右下角会显示“共享模式”。
+5. 项目 URL 和公开 **Publishable key** 已写入 `supabase-config.js`。该配置会随静态网页公开；它不是数据库密码或服务角色密钥。
+6. 管理员仍需创建 Supabase Auth 邮箱账号，并运行上方 SQL 将其加入 `admin_users`。不要把密码提交到 GitHub。
 
 `supabase-config.js` 中的 Project URL 和 publishable/anon key 是浏览器公开配置；**绝不能把 `service_role` 或任何 secret key 放进前端或 GitHub**。数据库通过 RLS 和列级权限限制数据访问。SQL 结构参考 Supabase 的 [RLS 文档](https://supabase.com/docs/guides/database/postgres/row-level-security)。
 
@@ -42,7 +42,6 @@ python -m http.server 8000
 
 ## 部署状态与限制
 
-静态页面已配置为由 GitHub Pages Actions 发布；Supabase 后端代码、数据库 SQL 和接入说明已准备好。**共享服务要等你创建 Supabase 项目、运行 SQL 并把 Project URL 与公开 key 填进配置文件后才会真正连通。**没有配置时页面会明确标示为仅本地演示。当前示例数据的点赞数是预置展示值，不是实际访客点赞历史。
+静态页面由 GitHub Pages Actions 发布。Supabase Free 后端和数据库结构已创建，浏览器公开配置已接入；发布完成后，投稿与点赞通过共享数据库保存。管理员编辑功能还需先创建管理员邮箱账号并加入 `admin_users`。当前示例数据的点赞数是预置展示值，不是实际访客点赞历史。匿名登录建议在 Supabase Authentication → Attack Protection 中配置 CAPTCHA，以减少滥用。
 
 相关官方文档：[Supabase Auth](https://supabase.com/docs/guides/auth)、[Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)。
-

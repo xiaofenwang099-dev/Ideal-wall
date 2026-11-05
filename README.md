@@ -32,6 +32,8 @@ python -m http.server 8000
 5. 项目 URL 和公开 **Publishable key** 已写入 `supabase-config.js`。该配置会随静态网页公开；它不是数据库密码或服务角色密钥。
 6. 管理员仍需创建 Supabase Auth 邮箱账号，并运行上方 SQL 将其加入 `admin_users`。不要把密码提交到 GitHub。
 
+管理员登录框提供“忘记密码”入口。它会向管理员邮箱发送 Supabase 密码重置邮件；打开邮件链接后，网页会提示输入并确认新密码。管理员邀请链接首次返回网站时也会提示设置密码。
+
 `supabase-config.js` 中的 Project URL 和 publishable/anon key 是浏览器公开配置；**绝不能把 `service_role` 或任何 secret key 放进前端或 GitHub**。数据库通过 RLS 和列级权限限制数据访问。SQL 结构参考 Supabase 的 [RLS 文档](https://supabase.com/docs/guides/database/postgres/row-level-security)。
 
 ## 数据表

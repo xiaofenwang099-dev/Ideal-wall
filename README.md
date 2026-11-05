@@ -1,6 +1,6 @@
 # 理想收集所
 
-一个温柔明亮的理想墙，支持投稿、分类筛选、最新／热门排序、气球和列表视图、详情、点赞以及管理员编辑和删除。
+温柔明亮的理想墙，支持注册登录、公开或私密投稿、个人心愿管理、分类筛选、热门排序、气球与列表视图、点赞，以及管理员管理。
 
 ## 本地预览
 
@@ -10,40 +10,38 @@
 python -m http.server 8000
 ```
 
-然后访问 http://localhost:8000。
+然后访问 http://localhost:8000。未配置 Supabase 时，页面使用示例数据和浏览器 `localStorage`，只在当前设备有效；本地演示模式不提供真实账户。
 
-未配置 Supabase 时，页面使用示例理想和浏览器 `localStorage`，只在当前设备有效。管理员登录也是本地演示门禁，不能用于线上安全管理。
+## 线上功能与数据库
 
-## 启用共享投稿、点赞和管理员编辑
+页面使用 Supabase Postgres、Auth 和 Row Level Security。访客可以浏览和点赞公开心愿。注册并登录后，用户可以投稿、在“我的心愿”查看自己的全部投稿、编辑或删除，以及在公开和私密之间切换。公开心愿显示在主页；私密心愿仅投稿者和管理员可读取。点赞由数据库触发器计数，重复点赞由数据库唯一键阻止。
 
-本项目使用 Supabase Postgres、匿名 Auth 会话和 RLS。访客可匿名投稿和每人每条理想点赞一次；管理员通过邮箱密码登录，只有数据库中加入 `admin_users` 的账号才能编辑或删除。点赞计数由数据库触发器维护，浏览器不能直接修改。
+当前 Supabase 项目已应用 `supabase/migrations/002_accounts_privacy.sql`。它增加了 `user_id` 和 `is_public`，将自定义分类限制为 1–24 字，并调整 RLS 与列权限。新建 Supabase 项目时，可运行完整初始脚本 `supabase/schema.sql`。
 
-1. Supabase Free 项目已经创建。
-2. 数据库表、安全策略和 15 条示例投稿已经在 **SQL Editor** 创建，脚本位于 [`supabase/schema.sql`](supabase/schema.sql)。新建项目时运行一次；重复运行会再次加入示例投稿。
-3. **Authentication → Sign In / Providers** 已启用 **Anonymous Sign-Ins**。访客无需注册，Supabase 会为每台浏览器分配匿名身份，以便跨刷新防止重复点赞。
-4. 在 **Authentication → Users** 创建管理员用户，记下其邮箱。然后在 SQL Editor 执行下方语句，把账号加入管理员名单（替换邮箱）：
+匿名 Auth 仍用于浏览者点赞；提交心愿必须使用注册账户。注册邮件和重置邮件受 Supabase Auth 邮件服务的限制。要允许更多用户收取验证邮件，需在 Supabase Authentication 配置自定义 SMTP。Auth 回跳地址需包含：
 
-   ```sql
-   insert into public.admin_users (user_id)
-   select id from auth.users where lower(email) = lower('你的管理员邮箱')
-   on conflict (user_id) do nothing;
-   ```
+```
+https://xiaofenwang099-dev.github.io/Ideal-wall/
+```
 
-5. 项目 URL 和公开 **Publishable key** 已写入 `supabase-config.js`。该配置会随静态网页公开；它不是数据库密码或服务角色密钥。
-6. 管理员仍需创建 Supabase Auth 邮箱账号，并运行上方 SQL 将其加入 `admin_users`。不要把密码提交到 GitHub。
+管理员需在 Supabase Auth 创建账号，并加入 `admin_users`：
 
-管理员登录框提供“忘记密码”入口。它会向管理员邮箱发送 Supabase 密码重置邮件；打开邮件链接后，网页会提示输入并确认新密码。管理员邀请链接首次返回网站时也会提示设置密码。
+```sql
+insert into public.admin_users (user_id)
+select id from auth.users where lower(email) = lower('你的管理员邮箱')
+on conflict (user_id) do nothing;
+```
 
-`supabase-config.js` 中的 Project URL 和 publishable/anon key 是浏览器公开配置；**绝不能把 `service_role` 或任何 secret key 放进前端或 GitHub**。数据库通过 RLS 和列级权限限制数据访问。SQL 结构参考 Supabase 的 [RLS 文档](https://supabase.com/docs/guides/database/postgres/row-level-security)。
+`supabase-config.js` 仅包含浏览器可公开的 Project URL 和 Publishable/anon key。绝不能把 `service_role` 或其他 secret key 放进前端或 GitHub。
 
 ## 数据表
 
-- `wishes`：理想正文、分类、昵称、点赞数和发布时间。
-- `wish_likes`：每个 Supabase 用户对每条理想的点赞记录，`(wish_id, voter_id)` 唯一。
-- `admin_users`：获准编辑或删除理想的管理员用户 ID。
+- `wishes`：理想正文、分类、昵称、所有者、公开状态、点赞数和发布时间。
+- `wish_likes`：每个 Supabase 用户对每条公开理想的点赞记录，`(wish_id, voter_id)` 唯一。
+- `admin_users`：获准管理全站投稿的管理员用户 ID。
 
-## 部署状态与限制
+## 部署说明
 
-静态页面由 GitHub Pages Actions 发布。Supabase Free 后端和数据库结构已创建，浏览器公开配置已接入；发布完成后，投稿与点赞通过共享数据库保存。管理员编辑功能还需先创建管理员邮箱账号并加入 `admin_users`。当前示例数据的点赞数是预置展示值，不是实际访客点赞历史。匿名登录建议在 Supabase Authentication → Attack Protection 中配置 CAPTCHA，以减少滥用。
+静态页面由 GitHub Pages 发布。Supabase Free 数据库保存共享投稿与点赞。示例数据是预置展示内容；其点赞数不是实际访客点赞历史。匿名点赞建议在 Supabase Authentication → Attack Protection 中配置 CAPTCHA。
 
-相关官方文档：[Supabase Auth](https://supabase.com/docs/guides/auth)、[Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)。
+相关文档：[Supabase Auth](https://supabase.com/docs/guides/auth)、[Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)、[SMTP 配置](https://supabase.com/docs/guides/auth/auth-smtp)。

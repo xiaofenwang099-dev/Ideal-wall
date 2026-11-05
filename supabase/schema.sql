@@ -92,9 +92,12 @@ create policy "Visitors can check their own likes"
   using (voter_id = (select auth.uid()));
 
 drop policy if exists "Visitors may like once per wish" on public.wish_likes;
-create policy "Visitors may like once per wish"
+create policy "Visitors may like public wishes once"
   on public.wish_likes for insert to authenticated
-  with check (voter_id = (select auth.uid()));
+  with check (
+    voter_id = (select auth.uid())
+    and exists (select 1 from public.wishes w where w.id = wish_id and w.is_public = true)
+  );
 
 create or replace function public.bump_ideal_wall_like_count()
 returns trigger

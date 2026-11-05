@@ -4,8 +4,10 @@
 create table if not exists public.wishes (
   id uuid primary key default gen_random_uuid(),
   text text not null check (char_length(btrim(text)) between 4 and 120),
-  category text not null check (category in ('生活', '旅行', '事业', '关系', '成长', '世界')),
+  category text not null check (char_length(btrim(category)) between 1 and 24),
   nickname text not null default '匿名' check (char_length(nickname) <= 24),
+  user_id uuid references auth.users(id) on delete cascade default auth.uid(),
+  is_public boolean not null default true,
   like_count integer not null default 0 check (like_count >= 0),
   created_at timestamptz not null default now()
 );
@@ -24,6 +26,8 @@ create table if not exists public.wish_likes (
 
 create index if not exists wishes_created_at_idx on public.wishes (created_at desc);
 create index if not exists wishes_like_count_idx on public.wishes (like_count desc);
+create index if not exists wishes_user_id_created_at_idx on public.wishes (user_id, created_at desc);
+create index if not exists wishes_public_created_at_idx on public.wishes (is_public, created_at desc);
 
 alter table public.wishes enable row level security;
 alter table public.admin_users enable row level security;
@@ -31,8 +35,8 @@ alter table public.wish_likes enable row level security;
 
 revoke all on table public.wishes, public.admin_users, public.wish_likes from anon, authenticated;
 grant select on table public.wishes to anon, authenticated;
-grant insert (text, category, nickname) on table public.wishes to authenticated;
-grant update (text, category, nickname) on table public.wishes to authenticated;
+grant insert (text, category, nickname, is_public) on table public.wishes to authenticated;
+grant update (text, category, nickname, is_public) on table public.wishes to authenticated;
 grant delete on table public.wishes to authenticated;
 grant select on table public.admin_users to authenticated;
 grant select on table public.wish_likes to authenticated;
@@ -44,13 +48,17 @@ create policy "Admins can check their own membership"
   using (user_id = (select auth.uid()));
 
 drop policy if exists "Wishes are public to read" on public.wishes;
-create policy "Wishes are public to read"
-  on public.wishes for select to anon, authenticated using (true);
+create policy "Public wishes are viewable"
+  on public.wishes for select to anon, authenticated using (is_public = true);
+
+create policy "Owners and admins can view private wishes"
+  on public.wishes for select to authenticated
+  using (user_id = (select auth.uid()) or (select public.is_ideal_wall_admin()));
 
 drop policy if exists "Signed-in visitors may submit wishes" on public.wishes;
-create policy "Signed-in visitors may submit wishes"
+create policy "Registered users may submit wishes"
   on public.wishes for insert to authenticated
-  with check (char_length(btrim(text)) between 4 and 120 and category in ('生活', '旅行', '事业', '关系', '成长', '世界'));
+  with check (user_id = (select auth.uid()) and not coalesce(((select auth.jwt())->>'is_anonymous')::boolean, false) and char_length(btrim(text)) between 4 and 120 and char_length(btrim(category)) between 1 and 24);
 
 create or replace function public.is_ideal_wall_admin()
 returns boolean
@@ -68,15 +76,15 @@ revoke all on function public.is_ideal_wall_admin() from public;
 grant execute on function public.is_ideal_wall_admin() to authenticated;
 
 drop policy if exists "Admins may edit wishes" on public.wishes;
-create policy "Admins may edit wishes"
+create policy "Owners and admins may edit wishes"
   on public.wishes for update to authenticated
-  using ((select public.is_ideal_wall_admin()))
-  with check ((select public.is_ideal_wall_admin()));
+  using (user_id = (select auth.uid()) or (select public.is_ideal_wall_admin()))
+  with check (user_id = (select auth.uid()) or (select public.is_ideal_wall_admin()));
 
 drop policy if exists "Admins may delete wishes" on public.wishes;
-create policy "Admins may delete wishes"
+create policy "Owners and admins may delete wishes"
   on public.wishes for delete to authenticated
-  using ((select public.is_ideal_wall_admin()));
+  using (user_id = (select auth.uid()) or (select public.is_ideal_wall_admin()));
 
 drop policy if exists "Visitors can check their own likes" on public.wish_likes;
 create policy "Visitors can check their own likes"

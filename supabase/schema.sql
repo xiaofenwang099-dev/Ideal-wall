@@ -8,6 +8,7 @@ create table if not exists public.wishes (
   nickname text not null default '匿名' check (char_length(nickname) <= 24),
   user_id uuid references auth.users(id) on delete cascade default auth.uid(),
   is_public boolean not null default true,
+  is_completed boolean not null default false,
   like_count integer not null default 0 check (like_count >= 0),
   created_at timestamptz not null default now()
 );
@@ -36,7 +37,7 @@ alter table public.wish_likes enable row level security;
 revoke all on table public.wishes, public.admin_users, public.wish_likes from anon, authenticated;
 grant select on table public.wishes to anon, authenticated;
 grant insert (text, category, nickname, is_public) on table public.wishes to authenticated;
-grant update (text, category, nickname, is_public) on table public.wishes to authenticated;
+grant update (text, category, nickname, is_public, is_completed) on table public.wishes to authenticated;
 grant delete on table public.wishes to authenticated;
 grant select on table public.admin_users to authenticated;
 grant select on table public.wish_likes to authenticated;
@@ -133,4 +134,5 @@ insert into public.wishes (text, category, nickname, like_count, created_at) val
   ('在雨林里听一夜的雨声，醒来时不用看手机。','旅行','南风',3,now()-interval '3 hours'),
   ('种一棵树，等它长成可以乘凉的样子。','世界','匿名',2,now()-interval '2 hours'),
   ('每年写一本小小的旅行手账，记住路上的人和风景。','成长','纸飞机',1,now()-interval '1 hour');
+
 
